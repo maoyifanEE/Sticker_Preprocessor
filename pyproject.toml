@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68,<81", "wheel>=0.41,<1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sticker-preprocessor"
+version = "0.1.0"
+description = "Local desktop app for converting images into true-transparent PNG stickers."
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "Pillow>=12.1,<13.0",
+    "numpy>=1.26,<3.0",
+]
+
+[project.optional-dependencies]
+ai = [
+    "rembg[cpu]==2.0.76",
+]
+dev = [
+    "pytest>=8.0,<9.0",
+    "ruff>=0.6,<1.0",
+]
+
+[project.scripts]
+sticker-preprocessor = "sticker_preprocessor.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
