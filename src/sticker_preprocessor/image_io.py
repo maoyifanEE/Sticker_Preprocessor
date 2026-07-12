@@ -55,6 +55,9 @@ def load_image(path: str | Path) -> LoadedImage:
     except (UnsupportedFormatError, AnimatedImageError, ImageTooLargeError):
         LOGGER.info("validation_failed name=%s", image_path.name)
         raise
+    except Image.DecompressionBombError as exc:
+        LOGGER.info("validation_failed name=%s reason=decompression_bomb", image_path.name)
+        raise ImageTooLargeError() from exc
     except (UnidentifiedImageError, OSError, ValueError) as exc:
         LOGGER.info("validation_failed name=%s reason=decode_error", image_path.name)
         raise InvalidImageError() from exc

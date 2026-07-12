@@ -77,11 +77,28 @@ def test_u2net_home_is_configured_before_lazy_import(monkeypatch):
 
 
 def test_rembg_exception_is_wrapped_safely(monkeypatch):
-    fake = types.SimpleNamespace(new_session=lambda model: object(), remove=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("x")))
+    raw_message = "C:\\Users\\someone\\secret\\model.onnx https://example.invalid/internal traceback"
+    fake = types.SimpleNamespace(
+        new_session=lambda model: object(),
+        remove=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError(raw_message)),
+    )
     monkeypatch.setattr(adapter.importlib, "import_module", lambda name: fake)
     adapter._SESSIONS.clear()
-    with pytest.raises(AIModelError):
+    with pytest.raises(AIModelError) as exc_info:
         adapter.remove_background(Image.new("RGB", (4, 4), "white"))
+    assert raw_message not in str(exc_info.value)
+    assert str(exc_info.value) == AIModelError.user_message
+
+
+def test_model_initialization_error_does_not_expose_raw_text(monkeypatch):
+    raw_message = "download https://example.invalid/model.onnx into C:\\Users\\name"
+    fake = types.SimpleNamespace(new_session=lambda model: (_ for _ in ()).throw(RuntimeError(raw_message)))
+    monkeypatch.setattr(adapter.importlib, "import_module", lambda name: fake)
+    adapter._SESSIONS.clear()
+    with pytest.raises(AIModelError) as exc_info:
+        adapter.get_session("silueta")
+    assert raw_message not in str(exc_info.value)
+    assert str(exc_info.value) == AIModelError.user_message
 
 
 def test_mocked_valid_rgba_result_is_returned(monkeypatch):

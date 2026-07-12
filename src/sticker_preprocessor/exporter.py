@@ -48,8 +48,13 @@ def choose_output_path(source_name: str, directory: Path | None = None) -> Path:
     return candidate
 
 
-def export_png(image: Image.Image, source_name: str, directory: Path | None = None) -> Path:
-    out_path = choose_output_path(source_name, directory)
+def export_png_to_path(image: Image.Image, destination: str | Path, *, overwrite: bool = False) -> Path:
+    out_path = Path(destination)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    if out_path.suffix.lower() != ".png":
+        out_path = out_path.with_suffix(".png")
+    if out_path.exists() and not overwrite:
+        raise ExportError("目标文件已存在，请选择其他文件名。")
     tmp_path = out_path.with_name(out_path.name + ".tmp")
     LOGGER.info("export_started name=%s", out_path.name)
     try:
@@ -62,8 +67,13 @@ def export_png(image: Image.Image, source_name: str, directory: Path | None = No
         if tmp_path.exists():
             tmp_path.unlink()
         LOGGER.exception("export_failed name=%s", out_path.name)
-        if isinstance(exc, InvalidOutputError):
+        if isinstance(exc, InvalidOutputError | ExportError):
             raise
-        raise ExportError(str(exc)) from exc
+        raise ExportError() from exc
     LOGGER.info("export_succeeded name=%s", out_path.name)
     return out_path
+
+
+def export_png(image: Image.Image, source_name: str, directory: Path | None = None) -> Path:
+    out_path = choose_output_path(source_name, directory)
+    return export_png_to_path(image, out_path, overwrite=False)

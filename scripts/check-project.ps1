@@ -26,6 +26,79 @@ if ($LASTEXITCODE -ne 0) { throw "RUFF_FAILED" }
 if ($LASTEXITCODE -ne 0) { throw "PYTEST_FAILED" }
 & $Python -m sticker_preprocessor --self-check
 if ($LASTEXITCODE -ne 0) { throw "SELF_CHECK_FAILED" }
+& $Python -m sticker_preprocessor --ui-smoke-test
+if ($LASTEXITCODE -ne 0) { throw "UI_SMOKE_FAILED" }
+
+$StaticUiScan = @"
+import ast
+from pathlib import Path
+import sys
+
+ui_source = Path('src/sticker_preprocessor/ui/main_window.py').read_text(encoding='utf-8')
+preview_source = Path('src/sticker_preprocessor/preview.py').read_text(encoding='utf-8')
+
+title = '\u8d34\u7eb8\u900f\u660e\u80cc\u666f\u5904\u7406\u5668'
+web_bg = '\u7f51\u9875\u80cc\u666f'
+web_checker = '\u7f51\u9875\u68cb\u76d8'
+required = [
+    title,
+    'reset_btn',
+    'progress',
+    'save_as_btn',
+    'open_output_btn',
+    web_bg,
+]
+missing = [item for item in required if item not in ui_source]
+if missing:
+    print('STATIC_UI_MISSING ' + ','.join(missing))
+    sys.exit(1)
+quote = chr(34)
+if ('DEFAULT_BACKGROUND_LABEL = ' + quote + web_bg + quote) not in ui_source:
+    print('STATIC_DEFAULT_PREVIEW_INVALID')
+    sys.exit(1)
+if web_checker in ui_source:
+    print('STATIC_CHECKERBOARD_DEFAULT_FOUND')
+    sys.exit(1)
+if 'ImageDraw' in preview_source or 'rectangle(' in preview_source or 'tile =' in preview_source:
+    print('STATIC_WEB_PREVIEW_CHECKER_PATTERN_FOUND')
+    sys.exit(1)
+
+tree = ast.parse(ui_source)
+class DirectCallVisitor(ast.NodeVisitor):
+    def __init__(self):
+        self.direct_calls = set()
+    def visit_FunctionDef(self, node):
+        return
+    def visit_Lambda(self, node):
+        return
+    def visit_Call(self, node):
+        func = node.func
+        if isinstance(func, ast.Name):
+            self.direct_calls.add(func.id)
+        elif isinstance(func, ast.Attribute):
+            self.direct_calls.add(func.attr)
+        self.generic_visit(node)
+
+def direct_calls(function_name):
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef) and node.name == 'MainWindow':
+            for item in node.body:
+                if isinstance(item, ast.FunctionDef) and item.name == function_name:
+                    visitor = DirectCallVisitor()
+                    for stmt in item.body:
+                        visitor.visit(stmt)
+                    return visitor.direct_calls
+    return set()
+
+if 'load_image' in direct_calls('choose_image'):
+    print('STATIC_SYNC_LOAD_FOUND')
+    sys.exit(1)
+if {'export_png', 'export_png_to_path'} & direct_calls('export_current'):
+    print('STATIC_SYNC_EXPORT_FOUND')
+    sys.exit(1)
+"@
+& $Python -c $StaticUiScan
+if ($LASTEXITCODE -ne 0) { throw "STATIC_UI_SOURCE_CHECK_FAILED" }
 
 $TrackedFiles = @(git ls-files)
 if ($TrackedFiles.Count -gt 0) {

@@ -13,8 +13,10 @@ Sticker_Preprocessor 是一个独立的本地 Windows 桌面应用，用于把�
 - 选择单张 PNG、JPEG 或 WebP 图片。
 - 自动分析真实 Alpha、内嵌棋盘格和普通不透明背景。
 - 支持自动、真实透明清理、棋盘格移除、AI 去背景四种处理模式。
-- 显示原图和结果预览。
-- 导出真正透明的 RGBA PNG。
+- 显示原图和结果预览，并支持浅色、深色、网页渐变背景。
+- 默认预览不使用棋盘格，避免把真实透明和假棋盘格再次混淆。
+- 默认导出到 `output`，也可以另存为指定 PNG。
+- 可打开输出文件夹。
 - 本地日志写入 `.runtime\logs`。
 
 ## 支持的输入
@@ -23,13 +25,13 @@ Sticker_Preprocessor 是一个独立的本地 Windows 桌面应用，用于把�
 - JPEG
 - WebP
 
-不支持 SVG、GIF、APNG、动态 WebP、视频、远程 URL、损坏图片和超限图片。
+不支持 SVG、GIF、APNG、动态 WebP、视频、远程 URL、损坏图片和超限图片。Pillow 的 decompression-bomb 防护触发时会按“图片尺寸过大”处理。
 
 ## 三种处理路线
 
 - 真实透明清理：保留原始 RGBA，仅裁剪透明边界并清理 Alpha 为 0 的 RGB。
-- 内嵌棋盘格移除：保守识别灰白棋盘格，只移除与边界连通的候选背景。
-- AI 去背景：通过可选 `rembg[cpu]` 本地推理处理普通不透明背景。
+- 内嵌棋盘格移除：保守识别灰白棋盘格，支持任意裁剪偏移 phase，只移除与边界连通的候选背景。
+- AI 去背景：通过可选 `rembg[cpu]` 本地 CPU 推理处理普通不透明背景。
 
 ## 环境要求
 
@@ -59,9 +61,30 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run.ps1
 
 也可以双击 `Start Sticker Preprocessor.cmd`。
 
+## UI 操作
+
+- `选择图片`：后台解码、应用 EXIF 方向、转换 RGBA 并分析透明度。
+- `开始处理`：后台执行透明清理、棋盘格移除或 AI 去背景。
+- `重置`：清空当前图片、结果、预览和诊断，不删除已导出文件或模型缓存。
+- `导出 PNG`：后台保存到 `output`，重名时自动编号。
+- `另存为`：选择一个 PNG 目标路径，存在文件会确认覆盖。
+- `打开输出文件夹`：打开仓库内 `output` 目录。
+
+加载、分析、处理、AI 模型初始化和 PNG 编码验证都在单个后台 worker 中执行。Tk 主线程只负责文件对话框、控件更新、消息框和预览呈现。
+
+关闭窗口时如果任务仍在运行，应用会询问是否继续关闭；确认后会等待当前任务安全结束，再关闭窗口。
+
+## 预览背景
+
+- 浅色：`#F4F1EA`
+- 深色：`#252A34`
+- 网页背景：浅蓝到奶油色渐变
+
+预览背景只影响界面显示，不会修改真实输出 PNG。原图和结果始终使用同一个选中的预览背景。
+
 ## 首次 AI 模型下载说明
 
-首次使用 AI 模式时，`rembg` 会把模型下载到 `.runtime\models\rembg`。模型不进入 Git，可能占用较多本地磁盘空间。
+首次使用 AI 模式时，`rembg` 会把模型下载到 `.runtime\models\rembg`。模型不进入 Git，可能占用较多本地磁盘空间。界面只提示首次模型使用需要下载，不显示字节级下载百分比。
 
 ## 输出目录
 
@@ -74,22 +97,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run.ps1
 - 包含真实非不透明 Alpha
 - 不覆盖原图
 - 文件名会清理 Windows 非法字符
-- 重名时自动追加序号
-
-## UI 操作说明
-
-- `Ctrl+O`：选择图片
-- `Ctrl+S`：导出当前有效结果
-- `Escape`：清理临时状态
-
-处理前必须先选择图片。导出按钮只在处理成功后启用。
-
-## 常见问题
-
-- AI 模式提示未安装：重新运行安装脚本，不带 `-SkipAI`。
-- 首次 AI 很慢：模型需要首次下载并初始化。
-- 浅色边缘效果不好：尝试其他模型或启用精细边缘。
-- 棋盘格未识别：检测器偏保守，避免误删主体，请改用 AI。
+- 默认导出重名时自动追加序号
+- 另存为会通过确认流程避免静默覆盖
 
 ## 测试
 
@@ -102,34 +111,22 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\check-project.ps1
 ```
 
-AI smoke test 会下载真实模型：
+AI smoke test 会使用真实模型缓存：
 
 ```powershell
 .\.venv\Scripts\python.exe -m sticker_preprocessor --ai-smoke-test --model silueta
 ```
 
+普通 pytest 不下载模型，测试图片均为合成图。
+
 ## 隐私与本地处理
 
 图片在本地处理。应用不调用云端背景移除 API，不上传图片，不写入 Personal_Web，不需要账户。
-
-## 项目结构
-
-```text
-src/sticker_preprocessor
-  image_io.py          输入验证和解码
-  analyzer.py          Alpha 分析
-  alpha_tools.py       透明裁剪
-  checkerboard.py      棋盘格检测和移除
-  rembg_adapter.py     AI 适配层
-  pipeline.py          处理决策树
-  exporter.py          PNG 导出
-  ui/main_window.py    Tkinter UI
-```
 
 ## 当前限制
 
 - V1 只支持单图处理。
 - 不提供手动画笔或蒙版编辑。
 - 不提供 EXE、MSI 或自动更新。
-- AI 结果需要人工视觉复核。
-- 建议在浅色和深色预览背景下检查透明效果。
+- AI 结果和边缘质量仍需要人工视觉复核。
+- 建议在浅色、深色和网页背景下检查透明效果。

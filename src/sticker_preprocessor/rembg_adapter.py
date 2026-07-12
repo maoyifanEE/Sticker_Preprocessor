@@ -27,6 +27,10 @@ def is_rembg_available() -> bool:
     return importlib.util.find_spec("rembg") is not None
 
 
+def has_cached_session(model_name: str = DEFAULT_MODEL) -> bool:
+    return model_name in _SESSIONS
+
+
 def get_session(model_name: str = DEFAULT_MODEL) -> object:
     model = validate_model_name(model_name)
     with _SESSION_LOCK:
@@ -43,7 +47,7 @@ def get_session(model_name: str = DEFAULT_MODEL) -> object:
             session = rembg.new_session(model)
         except Exception as exc:
             LOGGER.exception("model_initialization_failed model=%s", model)
-            raise AIModelError(str(exc)) from exc
+            raise AIModelError() from exc
         _SESSIONS[model] = session
         LOGGER.info("model_initialization_succeeded model=%s", model)
         return session
@@ -77,6 +81,6 @@ def remove_background(
         raise
     except Exception as exc:
         LOGGER.exception("processing_failed route=ai model=%s", model_name)
-        raise AIModelError(str(exc)) from exc
+        raise AIModelError() from exc
     LOGGER.info("processing_succeeded route=ai model=%s output=%sx%s", model_name, rgba.width, rgba.height)
     return rgba

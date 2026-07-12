@@ -91,7 +91,7 @@ def _estimate_tile_size(labels: np.ndarray) -> int | None:
 
 def _pattern_accuracy(labels: np.ndarray, tile: int, phase: tuple[int, int]) -> tuple[float, bool]:
     h, w = labels.shape
-    step = max(1, min(tile // 2, 8))
+    step = max(1, max(h, w) // 128)
     ys = np.arange(0, h, step)
     xs = np.arange(0, w, step)
     yy, xx = np.meshgrid(ys, xs, indexing="ij")
@@ -103,6 +103,42 @@ def _pattern_accuracy(labels: np.ndarray, tile: int, phase: tuple[int, int]) -> 
     direct = float(np.mean(sampled[valid] == expected[valid]))
     inverse = 1.0 - direct
     return (inverse, True) if inverse > direct else (direct, False)
+
+
+def _transition_phase_candidates(labels: np.ndarray, tile: int, *, axis: int) -> list[int]:
+    h, w = labels.shape
+    if axis == 0:
+        lines = [labels[y, :] for y in sorted({0, h - 1, h // 4, h // 2, (3 * h) // 4})]
+    else:
+        lines = [labels[:, x] for x in sorted({0, w - 1, w // 4, w // 2, (3 * w) // 4})]
+    candidates: set[int] = set()
+    for line in lines:
+        prev = int(line[0])
+        for idx, value in enumerate(line[1:], start=1):
+            current = int(value)
+            if prev in (0, 1) and current in (0, 1) and current != prev:
+                for delta in (-1, 0, 1):
+                    candidates.add((-(idx + delta)) % tile)
+            prev = current
+    if not candidates:
+        return list(range(tile))
+    return sorted(candidates)
+
+
+def _best_phase(labels: np.ndarray, tile: int) -> tuple[tuple[int, int], float, bool]:
+    x_candidates = _transition_phase_candidates(labels, tile, axis=0)
+    y_candidates = _transition_phase_candidates(labels, tile, axis=1)
+    best_phase = (0, 0)
+    best_accuracy = 0.0
+    best_inverted = False
+    for phase_x in x_candidates:
+        for phase_y in y_candidates:
+            accuracy, inverted = _pattern_accuracy(labels, tile, (phase_x, phase_y))
+            if accuracy > best_accuracy:
+                best_phase = (phase_x, phase_y)
+                best_accuracy = accuracy
+                best_inverted = inverted
+    return best_phase, best_accuracy, best_inverted
 
 
 def analyze_checkerboard(image: Image.Image) -> CheckerboardAnalysis:
@@ -130,9 +166,7 @@ def analyze_checkerboard(image: Image.Image) -> CheckerboardAnalysis:
     tile = _estimate_tile_size(labels)
     if tile is None or not SETTINGS.min_tile_size <= tile <= SETTINGS.max_tile_size:
         return _empty(("tile_size_unreliable",))
-    phases = [(0, 0), (tile // 2, 0), (0, tile // 2), (tile // 2, tile // 2)]
-    phase_scores = [(phase, *_pattern_accuracy(labels, tile, phase)) for phase in phases]
-    phase, accuracy, inverted = max(phase_scores, key=lambda item: item[1])
+    phase, accuracy, inverted = _best_phase(labels, tile)
     if inverted:
         c1, c2 = c2, c1
     confidence = min(1.0, accuracy * 0.75 + min(border_coverage, 1.0) * 0.25)

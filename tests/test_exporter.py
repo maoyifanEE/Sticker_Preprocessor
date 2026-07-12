@@ -5,7 +5,12 @@ import os
 import pytest
 from PIL import Image
 
-from sticker_preprocessor.exporter import choose_output_path, export_png, sanitize_filename
+from sticker_preprocessor.exporter import (
+    choose_output_path,
+    export_png,
+    export_png_to_path,
+    sanitize_filename,
+)
 from sticker_preprocessor.models import ExportError, InvalidOutputError
 from tests.helpers import rgba_with_square
 
@@ -38,6 +43,22 @@ def test_collision_generates_new_filename(tmp_path):
     first.write_bytes(b"x")
     second = choose_output_path("a.png", tmp_path)
     assert second.name == "a_sticker_2.png"
+
+
+def test_explicit_save_as_destination(tmp_path):
+    destination = tmp_path / "custom.png"
+    out = export_png_to_path(rgba_with_square(), destination)
+    assert out == destination
+    with Image.open(out) as img:
+        assert img.mode == "RGBA"
+
+
+def test_existing_destination_is_not_overwritten_silently(tmp_path):
+    destination = tmp_path / "existing.png"
+    destination.write_text("keep", encoding="utf-8")
+    with pytest.raises(ExportError):
+        export_png_to_path(rgba_with_square(), destination)
+    assert destination.read_text(encoding="utf-8") == "keep"
 
 
 def test_atomic_temporary_file_is_removed_on_failure(tmp_path, monkeypatch):

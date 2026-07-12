@@ -45,3 +45,28 @@ def test_runtime_paths_are_inside_project():
     root = runtime_root()
     assert root.name == ".runtime"
     assert output_dir().name == "output"
+
+
+def test_ui_static_controls_and_default_background():
+    from sticker_preprocessor.models import OperationType
+    from sticker_preprocessor.ui.main_window import BG_LABELS, DEFAULT_BACKGROUND_LABEL, MainWindow
+
+    root = MainWindow()
+    try:
+        assert root.title() == "贴纸透明背景处理器"
+        assert hasattr(root, "reset_btn")
+        assert hasattr(root, "progress")
+        assert hasattr(root, "save_as_btn")
+        assert hasattr(root, "open_output_btn")
+        assert DEFAULT_BACKGROUND_LABEL == "网页背景"
+        assert "棋盘" not in DEFAULT_BACKGROUND_LABEL
+        assert all("棋盘" not in label for label in BG_LABELS)
+        assert str(root.process_btn["state"]) == "disabled"
+        assert str(root.export_btn["state"]) == "disabled"
+        root._set_controls_for_operation(OperationType.LOAD)
+        assert str(root.open_btn["state"]) == "disabled"
+        assert str(root.process_btn["state"]) == "disabled"
+        assert str(root.export_btn["state"]) == "disabled"
+        assert str(root.save_as_btn["state"]) == "disabled"
+    finally:
+        root.destroy()

@@ -95,3 +95,18 @@ def test_file_size_limit_rejected(monkeypatch, tmp_path):
     Image.new("RGB", (8, 8), "white").save(path)
     with pytest.raises(ImageTooLargeError):
         load_image(path)
+
+
+def test_decompression_bomb_error_becomes_image_too_large(monkeypatch, tmp_path):
+    from PIL import Image as PilImage
+
+    path = tmp_path / "bomb.png"
+    path.write_bytes(b"not actually decoded")
+
+    def raise_bomb(_path):
+        raise PilImage.DecompressionBombError("raw internal detail")
+
+    monkeypatch.setattr("sticker_preprocessor.image_io.Image.open", raise_bomb)
+    with pytest.raises(ImageTooLargeError) as exc_info:
+        load_image(path)
+    assert str(exc_info.value) == ImageTooLargeError.user_message

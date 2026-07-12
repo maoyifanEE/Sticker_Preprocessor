@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
 
 from PIL import Image
 
@@ -19,6 +18,12 @@ class PreviewBackground(StrEnum):
     LIGHT = "light"
     DARK = "dark"
     WEB = "web"
+
+
+class OperationType(StrEnum):
+    LOAD = "load"
+    PROCESS = "process"
+    EXPORT = "export"
 
 
 class StickerPreprocessorError(Exception):
@@ -68,7 +73,7 @@ class AIComponentUnavailableError(StickerPreprocessorError):
 
 class AIModelError(StickerPreprocessorError):
     code = "AI_MODEL_ERROR"
-    user_message = "AI 模型处理失败。"
+    user_message = "AI 模型处理失败，请查看本地日志。"
 
 
 class InvalidOutputError(StickerPreprocessorError):
@@ -141,6 +146,3 @@ class LoadedImage:
     image: Image.Image
     detected_format: str
     original_mode: str
-
-
-WorkerMessage = dict[str, Any]

@@ -33,6 +33,43 @@ def test_shifted_parity_detected():
     assert result.phase is not None
 
 
+@pytest.mark.parametrize("shift", [(1, 1), (2, 5), (3, 7), (7, 2)])
+def test_tile_8_arbitrary_offsets_remove_border_background(shift):
+    out, analysis = remove_checkerboard(checkerboard(tile=8, shift=shift, subject=True))
+    alpha = np.asarray(out.getchannel("A"))
+    assert analysis.detected
+    assert alpha.min() == 0
+    assert alpha.max() == 255
+
+
+@pytest.mark.parametrize("shift", [(1, 9), (15, 4)])
+def test_tile_16_arbitrary_offsets_remove_border_background(shift):
+    out, analysis = remove_checkerboard(checkerboard(width=128, height=112, tile=16, shift=shift, subject=True))
+    alpha = np.asarray(out.getchannel("A"))
+    assert analysis.detected
+    assert alpha.min() == 0
+    assert alpha.max() == 255
+
+
+def test_non_square_checkerboard_dimensions_remove_correctly():
+    out, analysis = remove_checkerboard(
+        checkerboard(width=137, height=91, tile=8, shift=(5, 3), subject=True),
+        padding=0,
+    )
+    assert analysis.detected
+    assert out.size[0] < 137
+    assert out.size[1] < 91
+
+
+def test_checkerboard_cropped_from_all_four_sides_removes_correctly():
+    cropped = checkerboard(width=140, height=130, tile=8, shift=(6, 2), subject=True).crop((3, 5, 133, 121))
+    out, analysis = remove_checkerboard(cropped)
+    alpha = np.asarray(out.getchannel("A"))
+    assert analysis.detected
+    assert alpha.min() == 0
+    assert alpha.max() == 255
+
+
 def test_mild_rgb_noise_tolerated():
     result = analyze_checkerboard(checkerboard(tile=8, noise=2))
     assert result.detected

@@ -1,8 +1,14 @@
 from __future__ import annotations
 
-from PIL import Image, ImageDraw
+import numpy as np
+from PIL import Image
 
 from .models import PreviewBackground
+
+LIGHT_BACKGROUND = (244, 241, 234, 255)
+DARK_BACKGROUND = (37, 42, 52, 255)
+WEB_GRADIENT_START = np.array([232, 241, 250], dtype=np.float32)
+WEB_GRADIENT_END = np.array([250, 240, 219], dtype=np.float32)
 
 
 def make_preview(image: Image.Image, background: PreviewBackground, max_size: tuple[int, int]) -> Image.Image:
@@ -16,14 +22,15 @@ def make_preview(image: Image.Image, background: PreviewBackground, max_size: tu
 
 def _background(size: tuple[int, int], background: PreviewBackground) -> Image.Image:
     if background == PreviewBackground.DARK:
-        return Image.new("RGBA", size, (40, 40, 40, 255))
+        return Image.new("RGBA", size, DARK_BACKGROUND)
     if background == PreviewBackground.WEB:
-        tile = 12
-        img = Image.new("RGBA", size, (255, 255, 255, 255))
-        draw = ImageDraw.Draw(img)
-        for y in range(0, size[1], tile):
-            for x in range(0, size[0], tile):
-                if ((x // tile) + (y // tile)) % 2:
-                    draw.rectangle((x, y, x + tile - 1, y + tile - 1), fill=(210, 210, 210, 255))
-        return img
-    return Image.new("RGBA", size, (245, 245, 245, 255))
+        width, height = size
+        if width <= 0 or height <= 0:
+            return Image.new("RGBA", size, LIGHT_BACKGROUND)
+        xs = np.linspace(0.0, 1.0, width, dtype=np.float32)
+        ys = np.linspace(0.0, 1.0, height, dtype=np.float32)
+        mix = (xs[None, :] + ys[:, None]) / 2.0
+        rgb = WEB_GRADIENT_START * (1.0 - mix[:, :, None]) + WEB_GRADIENT_END * mix[:, :, None]
+        alpha = np.full((height, width, 1), 255, dtype=np.uint8)
+        return Image.fromarray(np.concatenate([rgb.astype(np.uint8), alpha], axis=2), "RGBA")
+    return Image.new("RGBA", size, LIGHT_BACKGROUND)
