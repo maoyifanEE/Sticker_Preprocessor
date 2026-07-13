@@ -13,7 +13,7 @@ from .models import ProcessingMode, ProcessingOptions, StickerPreprocessorError
 from .pipeline import process_image
 from .preview import make_preview
 from .review_bundle import create_qa_zip
-from .runtime_paths import project_root, qa_runs_dir
+from .runtime_paths import logs_dir, project_root, qa_runs_dir
 
 LOGGER = logging.getLogger(__name__)
 
@@ -59,6 +59,7 @@ def run_qa_batch(
     }
     pass_count = 0
     fail_count = 0
+    run_ids: list[str] = []
     options = ProcessingOptions(
         mode=mode,
         padding_pixels=padding,
@@ -97,6 +98,8 @@ def run_qa_batch(
             item["output"] = output_path.relative_to(run_dir).as_posix()
             item["status"] = "PASS"
             item["run_id"] = result.run_id
+            if result.run_id:
+                run_ids.append(result.run_id)
             for label, background in (
                 ("light", "light"),
                 ("dark", "dark"),
@@ -111,6 +114,10 @@ def run_qa_batch(
         except Exception as exc:
             fail_count += 1
             item["error"] = getattr(exc, "code", type(exc).__name__)
+            run_id = getattr(exc, "run_id", None)
+            if run_id:
+                item["run_id"] = run_id
+                run_ids.append(run_id)
             report_path = getattr(exc, "report_path", None)
             if report_path is not None:
                 report_source = Path(report_path)
@@ -125,6 +132,32 @@ def run_qa_batch(
             else:
                 LOGGER.exception("run.failed input=%s error=unexpected", path.name)
         manifest["items"].append(item)
+    manifest["pass_count"] = pass_count
+    manifest["fail_count"] = fail_count
     (run_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    (run_dir / "batch-report.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "timestamp": timestamp,
+                "git_commit": manifest["git_commit"],
+                "pass_count": pass_count,
+                "fail_count": fail_count,
+                "items": manifest["items"],
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    log_output = run_dir / "logs"
+    log_output.mkdir(parents=True, exist_ok=True)
+    log_path = logs_dir() / "sticker_preprocessor.log"
+    if log_path.exists():
+        lines = log_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+        relevant = [line for line in lines if any(run_id in line for run_id in run_ids)]
+        (log_output / "relevant-log.txt").write_text("\n".join(relevant), encoding="utf-8")
+    else:
+        (log_output / "relevant-log.txt").write_text("", encoding="utf-8")
     zip_path = create_qa_zip(run_dir, timestamp=timestamp, short_commit=short_commit)
     return pass_count, fail_count, zip_path
