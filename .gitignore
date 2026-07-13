@@ -5,6 +5,8 @@ __pycache__/
 *.egg-info/
 *.pyc
 .runtime/
+input/*
+!input/.gitkeep
 output/*
 !output/.gitkeep
 *.log

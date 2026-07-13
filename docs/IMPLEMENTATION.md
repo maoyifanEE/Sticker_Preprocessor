@@ -22,6 +22,21 @@ The loader converts working images to RGBA but records the original decoded mode
 
 Meaningful transparency counts pixels with Alpha `< 250` and requires at least `max(64, 0.01% of pixels)`.
 
+Very low Alpha residue can form an almost invisible full-frame rectangle. CSS shadows and light page backgrounds can amplify that residue into a visible box, so the pipeline records detailed Alpha diagnostics and applies border-connected haze cleanup.
+
+## Alpha Diagnostics And Quality Gate
+
+`diagnostics.py` computes Alpha histograms, threshold bounding boxes, outer-edge metrics, corner metrics, conservative haze reason codes, and final quality verdicts. Reports are written to `.runtime\reports\<run-id>.json` atomically for successes and practical failures.
+
+The quality gate checks RGBA mode, real transparency, non-empty foreground, transparent border padding, residual rectangular haze, dimensions, and RGB cleanup where Alpha is zero. Known rectangular haze fails instead of exporting silently.
+
+Route-specific haze thresholds are named constants:
+
+- `ALPHA_SOURCE_HAZE_CUTOFF = 8`
+- `GENERATED_RESULT_HAZE_CUTOFF = 32`
+
+The cleanup flood-fills only low-Alpha candidate pixels connected to the image border. Interior low-Alpha details and near-opaque Alpha 251-254 subject pixels are preserved.
+
 ## Checkerboard Detection
 
 The detector samples border strips, quantizes RGB values, finds two dominant light neutral colors, checks coverage, estimates tile size from alternating runs, then derives candidate x/y phase offsets from scan-line transitions. Candidate phases are scored on sparse sample points, so arbitrary crop offsets can be recovered without scanning every pixel for every possible phase.
@@ -44,9 +59,25 @@ The Tkinter UI uses `ThreadPoolExecutor(max_workers=1)` for load, analysis, proc
 
 The UI tracks an operation generation so stale completions cannot replace newer state.
 
+The UI exposes diagnostic controls for exporting a review bundle and opening the log folder. The result panel displays run ID, selected route, quality result, removed haze pixels, final border Alpha count, key Alpha bounding boxes, and warnings.
+
 ## Save-As And Output Folder
 
 Default export writes to `output` with collision numbering. Save-as uses a native save dialog, PNG-only extension, sanitized default filename, overwrite confirmation, and the same atomic encode/verify path in the worker. Opening the output folder uses `os.startfile(output_dir())` without shelling untrusted text.
+
+## Review Bundles And QA Batch
+
+`review_bundle.py` creates local ZIP files under `.runtime\review-bundles`. A single-image bundle contains `manifest.json`, `report.json`, current-run log lines, the selected input image, optional processed output PNG, and light/dark/web previews.
+
+The bundle intentionally contains selected images and is created only after explicit user action. Nothing is uploaded automatically.
+
+`qa_batch.py` powers:
+
+```powershell
+python -m sticker_preprocessor --qa-batch input
+```
+
+It processes supported images in sorted order, continues after per-image failures, writes reports and previews under `.runtime\qa-runs`, and creates one final local review ZIP.
 
 ## Close During Processing
 
@@ -64,6 +95,9 @@ All runtime data stays under `.runtime`:
 - `.runtime\models\rembg`
 - `.runtime\temp`
 - `.runtime\test-temp`
+- `.runtime\reports`
+- `.runtime\qa-runs`
+- `.runtime\review-bundles`
 
 Exports go to `output`.
 

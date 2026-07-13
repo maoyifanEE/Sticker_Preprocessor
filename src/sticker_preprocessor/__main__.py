@@ -12,6 +12,7 @@ from . import __version__
 from .logging_config import setup_logging
 from .models import ProcessingMode, ProcessingOptions, StickerPreprocessorError
 from .pipeline import process_image
+from .qa_batch import run_qa_batch
 from .rembg_adapter import is_rembg_available, validate_model_name
 from .runtime_paths import configure_process_temp, ensure_runtime_dirs, output_dir, rembg_models_dir
 
@@ -91,6 +92,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--ui-smoke-test", action="store_true")
     parser.add_argument("--ai-smoke-test", action="store_true")
     parser.add_argument("--model", default="silueta")
+    parser.add_argument("--qa-batch")
+    parser.add_argument("--qa-mode", default="auto")
+    parser.add_argument("--qa-model", default="silueta")
+    parser.add_argument("--qa-alpha-matting", action="store_true")
+    parser.add_argument("--qa-padding", type=int, default=8)
+    parser.add_argument("--qa-crop-threshold", type=int, default=8)
     args = parser.parse_args(argv)
     if args.version:
         print(__version__)
@@ -101,6 +108,25 @@ def main(argv: list[str] | None = None) -> int:
         return ui_smoke_test()
     if args.ai_smoke_test:
         return ai_smoke_test(args.model)
+    if args.qa_batch:
+        try:
+            passed, failed, bundle = run_qa_batch(
+                args.qa_batch,
+                mode=ProcessingMode(args.qa_mode),
+                model=args.qa_model,
+                alpha_matting=args.qa_alpha_matting,
+                padding=args.qa_padding,
+                crop_threshold=args.qa_crop_threshold,
+            )
+        except Exception as exc:
+            print("QA_BATCH_PASS=0")
+            print("QA_BATCH_FAIL=1")
+            print(f"QA_ERROR={type(exc).__name__}")
+            return 1
+        print(f"QA_BATCH_PASS={passed}")
+        print(f"QA_BATCH_FAIL={failed}")
+        print(f"QA_REVIEW_BUNDLE={bundle}")
+        return 0 if failed == 0 else 1
     try:
         from .app import run
 

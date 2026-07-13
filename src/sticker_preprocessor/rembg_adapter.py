@@ -35,21 +35,22 @@ def get_session(model_name: str = DEFAULT_MODEL) -> object:
     model = validate_model_name(model_name)
     with _SESSION_LOCK:
         if model in _SESSIONS:
+            LOGGER.info("ai.session_cache_hit model=%s", model)
             return _SESSIONS[model]
         configure_u2net_home()
-        LOGGER.info("model_initialization_started model=%s", model)
+        LOGGER.info("ai.session_initialization_started model=%s", model)
         try:
             rembg = importlib.import_module("rembg")
         except ModuleNotFoundError as exc:
-            LOGGER.info("model_initialization_failed model=%s reason=missing_rembg", model)
+            LOGGER.info("ai.session_initialization_failed model=%s reason=missing_rembg", model)
             raise AIComponentUnavailableError() from exc
         try:
             session = rembg.new_session(model)
         except Exception as exc:
-            LOGGER.exception("model_initialization_failed model=%s", model)
+            LOGGER.exception("ai.session_initialization_failed model=%s", model)
             raise AIModelError() from exc
         _SESSIONS[model] = session
-        LOGGER.info("model_initialization_succeeded model=%s", model)
+        LOGGER.info("ai.session_initialization_succeeded model=%s", model)
         return session
 
 
@@ -62,6 +63,7 @@ def remove_background(
     session = get_session(model_name)
     try:
         rembg = importlib.import_module("rembg")
+        LOGGER.info("ai.inference_started model=%s", model_name)
         kwargs = {
             "session": session,
             "post_process_mask": False,
@@ -80,7 +82,7 @@ def remove_background(
     except AIComponentUnavailableError:
         raise
     except Exception as exc:
-        LOGGER.exception("processing_failed route=ai model=%s", model_name)
+        LOGGER.exception("ai.inference_failed model=%s", model_name)
         raise AIModelError() from exc
-    LOGGER.info("processing_succeeded route=ai model=%s output=%sx%s", model_name, rgba.width, rgba.height)
+    LOGGER.info("ai.inference_succeeded model=%s output=%sx%s", model_name, rgba.width, rgba.height)
     return rgba

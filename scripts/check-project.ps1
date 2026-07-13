@@ -46,6 +46,8 @@ required = [
     'progress',
     'save_as_btn',
     'open_output_btn',
+    'bundle_btn',
+    'open_logs_btn',
     web_bg,
 ]
 missing = [item for item in required if item not in ui_source]
@@ -130,9 +132,11 @@ sys.exit(1 if hits else 0)
 $Forbidden = $TrackedFiles | Where-Object {
     $_ -match "^\.venv/" -or
     $_ -match "^\.runtime/" -or
-    $_ -match "\.(log|onnx|pt|pth|tmp|temp|jpg|jpeg|webp|png|gif|db|sqlite|env|zip|7z|tar|gz)`$"
+    $_ -match "^input/.+\.(png|jpg|jpeg|webp|gif)`$" -or
+    $_ -match "^output/.+\.(png|jpg|jpeg|webp)`$" -or
+    $_ -match "\.(log|json|onnx|pt|pth|tmp|temp|jpg|jpeg|webp|png|gif|db|sqlite|env|zip|7z|tar|gz)`$"
 }
-$Forbidden = $Forbidden | Where-Object { $_ -ne "output/.gitkeep" }
+$Forbidden = $Forbidden | Where-Object { $_ -ne "output/.gitkeep" -and $_ -ne "input/.gitkeep" }
 if ($Forbidden) { $Forbidden | ForEach-Object { Write-Error "FORBIDDEN_TRACKED_FILE $_" }; throw "FORBIDDEN_TRACKED_FILES" }
 
 if ($TrackedFiles.Count -gt 0) {

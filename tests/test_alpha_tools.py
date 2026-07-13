@@ -21,7 +21,8 @@ def test_padding_is_retained():
 
 def test_padding_is_clamped_to_bounds():
     out = trim_transparent_bounds(rgba_with_square(size=20, margin=1), padding=20)
-    assert out.size == (20, 20)
+    assert out.size == (58, 58)
+    assert np.asarray(out.getchannel("A"))[0, :].max() == 0
 
 
 def test_semitransparent_pixels_are_preserved():

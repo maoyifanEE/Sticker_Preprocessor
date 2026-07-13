@@ -56,7 +56,7 @@ def export_png_to_path(image: Image.Image, destination: str | Path, *, overwrite
     if out_path.exists() and not overwrite:
         raise ExportError("目标文件已存在，请选择其他文件名。")
     tmp_path = out_path.with_name(out_path.name + ".tmp")
-    LOGGER.info("export_started name=%s", out_path.name)
+    LOGGER.info("export.started name=%s", out_path.name)
     try:
         rgba = image.convert("RGBA")
         rgba.save(tmp_path, format="PNG")
@@ -66,11 +66,11 @@ def export_png_to_path(image: Image.Image, destination: str | Path, *, overwrite
     except Exception as exc:
         if tmp_path.exists():
             tmp_path.unlink()
-        LOGGER.exception("export_failed name=%s", out_path.name)
+        LOGGER.exception("export.failed name=%s", out_path.name)
         if isinstance(exc, InvalidOutputError | ExportError):
             raise
         raise ExportError() from exc
-    LOGGER.info("export_succeeded name=%s", out_path.name)
+    LOGGER.info("export.succeeded name=%s", out_path.name)
     return out_path
 
 

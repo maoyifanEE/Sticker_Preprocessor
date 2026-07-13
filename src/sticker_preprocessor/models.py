@@ -138,6 +138,13 @@ class ProcessingResult:
     transparent_fraction: float
     processing_duration: float
     warnings: tuple[str, ...] = field(default_factory=tuple)
+    run_id: str | None = None
+    report_path: Path | None = None
+    final_quality_result: str | None = None
+    haze_removed_pixel_count: int = 0
+    final_border_nonzero_count: int = 0
+    alpha_gt_0_bbox: tuple[int, int, int, int] | None = None
+    alpha_gt_8_bbox: tuple[int, int, int, int] | None = None
 
 
 @dataclass(frozen=True)

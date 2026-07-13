@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 import tkinter as tk
@@ -11,6 +12,7 @@ from tkinter import filedialog, messagebox, ttk
 from PIL import Image, ImageTk
 
 from ..analyzer import analyze_image
+from ..diagnostics import analyze_alpha, new_run_id, sha256_file, utc_now_iso
 from ..exporter import export_png, export_png_to_path, sanitize_filename
 from ..image_io import load_image
 from ..models import (
@@ -26,7 +28,8 @@ from ..models import (
 from ..pipeline import process_image
 from ..preview import make_preview
 from ..rembg_adapter import DEFAULT_MODEL, has_cached_session
-from ..runtime_paths import output_dir
+from ..review_bundle import PRIVACY_WARNING, create_review_bundle
+from ..runtime_paths import logs_dir, output_dir, reports_dir
 
 LOGGER = logging.getLogger(__name__)
 
@@ -82,6 +85,8 @@ class MainWindow(tk.Tk):
         self.loaded: LoadedImage | None = None
         self.source_analysis: ImageAnalysis | None = None
         self.result: ProcessingResult | None = None
+        self.last_report_path: Path | None = None
+        self.last_run_id: str | None = None
         self.source_preview_image: Image.Image | None = None
         self.result_preview_image: Image.Image | None = None
         self.source_photo: ImageTk.PhotoImage | None = None
@@ -135,30 +140,34 @@ class MainWindow(tk.Tk):
         self.save_as_btn.grid(row=0, column=4, padx=(0, 8), pady=2)
         self.open_output_btn = ttk.Button(toolbar, text="打开输出文件夹", command=self.open_output_folder)
         self.open_output_btn.grid(row=0, column=5, padx=(0, 12), pady=2)
+        self.bundle_btn = ttk.Button(toolbar, text="导出诊断包", command=self.export_review_bundle)
+        self.bundle_btn.grid(row=0, column=6, padx=(0, 8), pady=2)
+        self.open_logs_btn = ttk.Button(toolbar, text="打开日志文件夹", command=self.open_logs_folder)
+        self.open_logs_btn.grid(row=0, column=7, padx=(0, 12), pady=2)
 
-        ttk.Label(toolbar, text="模式").grid(row=0, column=6, padx=(0, 4))
+        ttk.Label(toolbar, text="模式").grid(row=0, column=8, padx=(0, 4))
         self.mode_combo = ttk.Combobox(
             toolbar, textvariable=self.mode_var, values=list(MODE_LABELS), state="readonly", width=16
         )
-        self.mode_combo.grid(row=0, column=7, padx=(0, 8))
+        self.mode_combo.grid(row=0, column=9, padx=(0, 8))
         self.mode_combo.bind("<<ComboboxSelected>>", lambda _event: self._update_ai_hint())
 
-        ttk.Label(toolbar, text="AI 模型").grid(row=0, column=8, padx=(0, 4))
+        ttk.Label(toolbar, text="AI 模型").grid(row=0, column=10, padx=(0, 4))
         self.model_combo = ttk.Combobox(
             toolbar, textvariable=self.model_var, values=list(MODEL_LABELS), state="readonly", width=30
         )
-        self.model_combo.grid(row=0, column=9, padx=(0, 8))
+        self.model_combo.grid(row=0, column=11, padx=(0, 8))
         self.model_combo.bind("<<ComboboxSelected>>", lambda _event: self._update_ai_hint())
 
-        ttk.Label(toolbar, text="预览背景").grid(row=0, column=10, padx=(0, 4))
+        ttk.Label(toolbar, text="预览背景").grid(row=0, column=12, padx=(0, 4))
         self.bg_combo = ttk.Combobox(
             toolbar, textvariable=self.background_var, values=list(BG_LABELS), state="readonly", width=10
         )
-        self.bg_combo.grid(row=0, column=11, padx=(0, 8))
+        self.bg_combo.grid(row=0, column=13, padx=(0, 8))
         self.bg_combo.bind("<<ComboboxSelected>>", lambda _event: self.refresh_previews())
 
         self.progress = ttk.Progressbar(toolbar, mode="indeterminate", length=160)
-        self.progress.grid(row=0, column=12, sticky="e")
+        self.progress.grid(row=0, column=14, sticky="e")
 
         options = ttk.Frame(self, padding=(14, 2, 14, 8))
         options.grid(row=2, column=0, sticky="ew")
@@ -229,6 +238,8 @@ class MainWindow(tk.Tk):
         self.export_btn.configure(state=tk.NORMAL if has_result and not busy else tk.DISABLED)
         self.save_as_btn.configure(state=tk.NORMAL if has_result and not busy else tk.DISABLED)
         self.open_output_btn.configure(state=tk.DISABLED if busy else tk.NORMAL)
+        self.bundle_btn.configure(state=tk.NORMAL if self.loaded is not None and not busy else tk.DISABLED)
+        self.open_logs_btn.configure(state=tk.DISABLED if busy else tk.NORMAL)
         combo_state = "disabled" if busy else "readonly"
         self.mode_combo.configure(state=combo_state)
         self.model_combo.configure(state=combo_state)
@@ -263,6 +274,8 @@ class MainWindow(tk.Tk):
         self.status_var.set("正在载入并分析图片...")
         self.result = None
         self.result_preview_image = None
+        self.last_report_path = None
+        self.last_run_id = None
         self.result_photo = None
         self.result_label.configure(image="", text="尚未处理")
         self.result_info_var.set("结果：尚未处理。")
@@ -294,6 +307,7 @@ class MainWindow(tk.Tk):
                 original_mode=loaded.original_mode,
                 detected_format=loaded.detected_format,
                 options=options,
+                input_path=loaded.path,
             )
             return ProcessPayload(result, self._make_preview_source(result.output_image))
 
@@ -348,6 +362,62 @@ class MainWindow(tk.Tk):
             LOGGER.exception("open_output_folder_failed")
             messagebox.showerror("打开失败", "无法打开输出文件夹，请查看本地日志。")
 
+    def open_logs_folder(self) -> None:
+        try:
+            directory = logs_dir()
+            directory.mkdir(parents=True, exist_ok=True)
+            os.startfile(directory)  # type: ignore[attr-defined]
+        except OSError:
+            LOGGER.exception("open_logs_folder_failed")
+            messagebox.showerror("打开失败", "无法打开日志文件夹，请查看本地日志。")
+
+    def export_review_bundle(self) -> None:
+        if self.loaded is None:
+            return
+        if self.last_report_path is None or self.last_run_id is None:
+            self._create_load_only_report()
+        if not messagebox.askyesno("导出诊断包", PRIVACY_WARNING):
+            return
+        try:
+            bundle = create_review_bundle(
+                input_path=self.loaded.path,
+                report_path=self.last_report_path,
+                run_id=self.last_run_id,
+                source_image=self.loaded.image,
+                result=self.result,
+                options=self._processing_options(),
+            )
+        except Exception:
+            LOGGER.exception("review_bundle_failed run_id=%s", self.last_run_id)
+            messagebox.showerror("导出失败", "诊断包导出失败，请查看本地日志。")
+            return
+        self.status_var.set(f"诊断包已创建：{bundle.path}")
+        messagebox.showinfo("诊断包已创建", f"{PRIVACY_WARNING}\n\n{bundle.path}")
+
+    def _create_load_only_report(self) -> None:
+        if self.loaded is None:
+            return
+        run_id = new_run_id()
+        directory = reports_dir()
+        directory.mkdir(parents=True, exist_ok=True)
+        report_path = directory / f"{run_id}.json"
+        report = {
+            "schema_version": "1.0",
+            "run_id": run_id,
+            "utc_start_time": utc_now_iso(),
+            "utc_finish_time": utc_now_iso(),
+            "safe_input_basename": self.loaded.path.name,
+            "input_sha256": sha256_file(self.loaded.path),
+            "source_file_size": self.loaded.path.stat().st_size,
+            "requested_processing_mode": self._selected_mode().value,
+            "selected_processing_route": None,
+            "stage_diagnostics": {"source": analyze_alpha(self.loaded.image).__dict__},
+            "final_quality_result": "LOAD_ONLY",
+        }
+        report_path.write_text(json.dumps(report, ensure_ascii=False, default=str, indent=2), encoding="utf-8")
+        self.last_run_id = run_id
+        self.last_report_path = report_path
+
     def reset_state(self) -> None:
         if self._operation_running():
             return
@@ -356,6 +426,8 @@ class MainWindow(tk.Tk):
         self.result = None
         self.source_preview_image = None
         self.result_preview_image = None
+        self.last_report_path = None
+        self.last_run_id = None
         self.source_photo = None
         self.result_photo = None
         self.mode_var.set("自动")
@@ -391,6 +463,8 @@ class MainWindow(tk.Tk):
             payload = future.result()
         except StickerPreprocessorError as exc:
             LOGGER.info("operation_failed operation=%s code=%s", operation, exc.code)
+            self.last_report_path = getattr(exc, "report_path", None)
+            self.last_run_id = getattr(exc, "run_id", None)
             self.status_var.set(str(exc))
             if not self.closing:
                 messagebox.showerror("操作失败", str(exc))
@@ -405,6 +479,8 @@ class MainWindow(tk.Tk):
         if isinstance(payload, LoadedPayload):
             self.loaded = payload.loaded
             self.source_analysis = payload.analysis
+            self.last_report_path = None
+            self.last_run_id = None
             self.source_preview_image = payload.preview_image
             self.result = None
             self.result_preview_image = None
@@ -414,6 +490,8 @@ class MainWindow(tk.Tk):
             self.refresh_previews()
         elif isinstance(payload, ProcessPayload):
             self.result = payload.result
+            self.last_report_path = payload.result.report_path
+            self.last_run_id = payload.result.run_id
             self.result_preview_image = payload.preview_image
             self._update_result_info()
             self.status_var.set("处理完成。")
@@ -446,7 +524,13 @@ class MainWindow(tk.Tk):
             return
         result = self.result
         parts = [
+            f"Run ID {result.run_id}",
             f"结果：路线 {result.selected_mode.value}",
+            f"质量 {result.final_quality_result}",
+            f"移除低 Alpha 像素 {result.haze_removed_pixel_count}",
+            f"最终边界非零 Alpha {result.final_border_nonzero_count}",
+            f"Alpha>0 bbox {result.alpha_gt_0_bbox}",
+            f"Alpha>8 bbox {result.alpha_gt_8_bbox}",
             f"原始 {result.original_size[0]} x {result.original_size[1]}",
             f"输出 {result.output_size[0]} x {result.output_size[1]}",
             f"透明像素 {result.transparent_fraction:.1%}",

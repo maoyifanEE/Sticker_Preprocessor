@@ -31,12 +31,38 @@ def test_temp_dir() -> Path:
     return runtime_root() / "test-temp"
 
 
+def reports_dir() -> Path:
+    return runtime_root() / "reports"
+
+
+def qa_runs_dir() -> Path:
+    return runtime_root() / "qa-runs"
+
+
+def review_bundles_dir() -> Path:
+    return runtime_root() / "review-bundles"
+
+
 def output_dir() -> Path:
     return project_root() / "output"
 
 
+def input_dir() -> Path:
+    return project_root() / "input"
+
+
 def ensure_runtime_dirs() -> None:
-    for path in (logs_dir(), rembg_models_dir(), temp_dir(), test_temp_dir(), output_dir()):
+    for path in (
+        logs_dir(),
+        rembg_models_dir(),
+        temp_dir(),
+        test_temp_dir(),
+        reports_dir(),
+        qa_runs_dir(),
+        review_bundles_dir(),
+        output_dir(),
+        input_dir(),
+    ):
         path.mkdir(parents=True, exist_ok=True)
 
 
