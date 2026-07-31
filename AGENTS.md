@@ -14,3 +14,12 @@
 - 提交前运行 `powershell -ExecutionPolicy Bypass -File .\scripts\check-project.ps1`。
 - 不要直接修改、推送、合并或部署 `main`。
 - 不要自动合并、发布 release 或创建 tag。
+
+Personal_Web handoff exception:
+
+- This repository may expose the versioned provider contract in
+  `docs/contracts/` and the `--bridge-*` CLI commands.
+- The provider must remain isolated: do not import Personal_Web code, call
+  Personal_Web APIs, upload media, write a Personal_Web database, or modify a
+  Journey canvas.
+- Bridge runtime artifacts must stay under ignored `.runtime` paths.

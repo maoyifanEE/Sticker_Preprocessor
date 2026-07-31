@@ -181,3 +181,37 @@ AI smoke test 会使用真实模型缓存：
 - 不提供 EXE、MSI 或自动更新。
 - AI 结果和边缘质量仍需要人工视觉复核。
 - 建议在浅色、深色和网页背景下检查透明效果。
+
+## Personal_Web handoff bridge
+
+Sticker_Preprocessor can act as a local external tool for Personal_Web through
+the versioned contract in `docs/contracts/`.
+
+The bridge commands are:
+
+```powershell
+.\.venv\Scripts\python.exe -m sticker_preprocessor --bridge-capabilities
+.\.venv\Scripts\python.exe -m sticker_preprocessor --bridge-process-request <request.json>
+```
+
+The capabilities command writes exactly one compact JSON object to stdout.
+
+The process command reads one request JSON, validates the contract version,
+validates the input path, byte count, SHA-256 hash, MIME type, and allowlisted
+options, then writes local handoff artifacts under `.runtime\bridge-runs`.
+
+Bridge output includes:
+
+* `handoff\processed.png`
+* `handoff\result.json`
+* `handoff\report.json` when a processing report is available
+* `events.jsonl`
+* `sanitized-request.json`
+
+The stdout response is intentionally small JSON containing status and the
+relative result manifest path. Diagnostic logs, selected images, reports, and
+runtime files stay local and ignored by Git.
+
+Sticker_Preprocessor remains the provider only. It never calls Personal_Web
+APIs, never uploads media, never writes a Personal_Web database, never changes a
+Journey canvas, and never decides publication.

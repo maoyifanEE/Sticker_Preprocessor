@@ -98,7 +98,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--qa-alpha-matting", action="store_true")
     parser.add_argument("--qa-padding", type=int, default=8)
     parser.add_argument("--qa-crop-threshold", type=int, default=8)
+    parser.add_argument("--bridge-capabilities", action="store_true")
+    parser.add_argument("--bridge-process-request")
     args = parser.parse_args(argv)
+    if args.bridge_capabilities:
+        from .bridge_cli import run_capabilities
+
+        return run_capabilities()
+    if args.bridge_process_request:
+        from .bridge_cli import run_process_request
+
+        return run_process_request(args.bridge_process_request)
     if args.version:
         print(__version__)
         return 0

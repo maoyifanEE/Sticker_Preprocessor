@@ -58,6 +58,7 @@ def process_image(
     detected_format: str = "PNG",
     options: ProcessingOptions | None = None,
     input_path: str | Path | None = None,
+    bridge_metadata: dict[str, str | None] | None = None,
 ) -> ProcessingResult:
     opts = options or ProcessingOptions()
     trace = make_trace(
@@ -67,6 +68,7 @@ def process_image(
         alpha_matting=opts.alpha_matting,
         crop_threshold=opts.alpha_crop_threshold,
         padding=opts.padding_pixels,
+        bridge_metadata=bridge_metadata,
     )
     start_total = time.perf_counter()
     checker: CheckerboardAnalysis | None = None

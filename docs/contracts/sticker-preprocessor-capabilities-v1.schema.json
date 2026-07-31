@@ -1,0 +1,29 @@
+﻿{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Sticker Preprocessor Capabilities v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "contractVersions", "tool", "supportedInputMimeTypes", "supportedModes", "supportedModels", "defaults", "limits", "reportSchemaVersion", "resultSchemaVersion"],
+  "properties": {
+    "schemaVersion": {"const": "sticker-preprocessor-capabilities-v1"},
+    "contractVersions": {"type": "array", "items": {"type": "string"}, "contains": {"const": "personal-web-sticker-handoff-v1"}},
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "gitCommit", "pythonVersion"],
+      "properties": {
+        "name": {"const": "Sticker_Preprocessor"},
+        "version": {"type": "string"},
+        "gitCommit": {"type": ["string", "null"]},
+        "pythonVersion": {"type": "string"}
+      }
+    },
+    "supportedInputMimeTypes": {"type": "array", "items": {"enum": ["image/png", "image/jpeg", "image/webp"]}},
+    "supportedModes": {"type": "array", "items": {"enum": ["auto", "alpha_cleanup", "checkerboard", "ai"]}},
+    "supportedModels": {"type": "array", "items": {"enum": ["silueta", "u2netp", "isnet-general-use"]}},
+    "defaults": {"type": "object"},
+    "limits": {"type": "object"},
+    "reportSchemaVersion": {"const": "1.0"},
+    "resultSchemaVersion": {"const": "sticker-preprocessor-result-v1"}
+  }
+}

@@ -152,6 +152,10 @@ class ProcessingTrace:
     report_path: str | None = None
     haze_cleanup_removed_pixels: int = 0
     haze_cleanup_threshold: int | None = None
+    external_correlation_id: str | None = None
+    bridge_contract_version: str | None = None
+    bridge_client_name: str | None = None
+    bridge_client_commit: str | None = None
 
 
 @dataclass(frozen=True)
@@ -215,12 +219,14 @@ def make_trace(
     alpha_matting: bool,
     crop_threshold: int,
     padding: int,
+    bridge_metadata: dict[str, str | None] | None = None,
 ) -> ProcessingTrace:
     file_size = Path(input_path).stat().st_size if input_path is not None and Path(input_path).is_file() else None
     try:
         digest = sha256_file(input_path)
     except OSError:
         digest = None
+    metadata = bridge_metadata or {}
     return ProcessingTrace(
         schema_version=SCHEMA_VERSION,
         run_id=new_run_id(),
@@ -249,6 +255,10 @@ def make_trace(
             "export_seconds": None,
             "total_seconds": None,
         },
+        external_correlation_id=metadata.get("external_correlation_id"),
+        bridge_contract_version=metadata.get("bridge_contract_version"),
+        bridge_client_name=metadata.get("bridge_client_name"),
+        bridge_client_commit=metadata.get("bridge_client_commit"),
     )
 
 

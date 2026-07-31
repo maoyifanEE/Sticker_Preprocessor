@@ -1,0 +1,16 @@
+﻿{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Sticker Preprocessor Bridge Response v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "contractVersion", "ok", "bridgeRunId", "toolRunId", "resultManifestRelativePath"],
+  "properties": {
+    "schemaVersion": {"const": "sticker-preprocessor-bridge-response-v1"},
+    "contractVersion": {"const": "personal-web-sticker-handoff-v1"},
+    "ok": {"type": "boolean"},
+    "bridgeRunId": {"type": ["string", "null"]},
+    "toolRunId": {"type": ["string", "null"]},
+    "resultManifestRelativePath": {"type": ["string", "null"]},
+    "errorCode": {"type": "string"}
+  }
+}

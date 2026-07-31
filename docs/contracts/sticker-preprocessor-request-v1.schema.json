@@ -1,0 +1,16 @@
+﻿{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Personal Web Sticker Request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "contractVersion", "bridgeRunId", "createdAt", "client", "input", "options"],
+  "properties": {
+    "schemaVersion": {"const": "personal-web-sticker-request-v1"},
+    "contractVersion": {"const": "personal-web-sticker-handoff-v1"},
+    "bridgeRunId": {"type": "string", "pattern": "^[0-9a-f]{32}$"},
+    "createdAt": {"type": "string"},
+    "client": {"type": "object", "additionalProperties": false, "required": ["name", "gitCommit"], "properties": {"name": {"const": "Personal_Web"}, "gitCommit": {"type": ["string", "null"]}}},
+    "input": {"type": "object", "additionalProperties": false, "required": ["path", "safeBasename", "mimeType", "bytes", "sha256"], "properties": {"path": {"type": "string"}, "safeBasename": {"type": "string"}, "mimeType": {"enum": ["image/png", "image/jpeg", "image/webp"]}, "bytes": {"type": "integer", "minimum": 1}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}},
+    "options": {"type": "object", "additionalProperties": false, "required": ["mode", "aiModel", "alphaMatting", "paddingPixels", "alphaCropThreshold"], "properties": {"mode": {"enum": ["auto", "alpha_cleanup", "checkerboard", "ai"]}, "aiModel": {"enum": ["silueta", "u2netp", "isnet-general-use"]}, "alphaMatting": {"type": "boolean"}, "paddingPixels": {"type": "integer", "minimum": 0, "maximum": 128}, "alphaCropThreshold": {"type": "integer", "minimum": 0, "maximum": 255}}}
+  }
+}

@@ -1,0 +1,22 @@
+﻿{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Sticker Preprocessor Result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "contractVersion", "bridgeRunId", "toolRunId", "status", "createdAt", "tool", "input", "options", "processing", "output", "artifacts", "failure"],
+  "properties": {
+    "schemaVersion": {"const": "sticker-preprocessor-result-v1"},
+    "contractVersion": {"const": "personal-web-sticker-handoff-v1"},
+    "bridgeRunId": {"type": "string"},
+    "toolRunId": {"type": "string"},
+    "status": {"enum": ["success", "failed"]},
+    "createdAt": {"type": "string"},
+    "tool": {"type": "object"},
+    "input": {"type": "object"},
+    "options": {"type": "object"},
+    "processing": {"type": "object"},
+    "output": {"type": ["object", "null"]},
+    "artifacts": {"type": "object"},
+    "failure": {"type": ["object", "null"]}
+  }
+}

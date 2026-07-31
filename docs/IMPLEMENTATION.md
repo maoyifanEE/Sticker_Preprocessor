@@ -79,6 +79,39 @@ python -m sticker_preprocessor --qa-batch input
 
 It processes supported images in sorted order, continues after per-image failures, writes reports and previews under `.runtime\qa-runs`, and creates one final local review ZIP.
 
+## Personal_Web Bridge Contract
+
+`bridge_contract.py`, `bridge_cli.py`, `bridge_events.py`, and
+`bridge_manifest.py` implement the Personal_Web handoff provider contract.
+
+The bridge is intentionally separate from the Tkinter UI. It supports two
+commands:
+
+* `--bridge-capabilities`
+* `--bridge-process-request <request.json>`
+
+Capabilities output is exactly one JSON object on stdout.
+
+Request processing validates:
+
+* contract and schema versions
+* exact top-level request keys
+* bridge run ID format
+* regular input file path
+* byte count and SHA-256 hash
+* supported MIME type
+* allowlisted processing mode and AI model
+* bounded padding and Alpha crop threshold values
+
+Processing stdout from the normal pipeline is redirected so the bridge response
+remains machine-readable. Each run writes JSONL events, a sanitized request,
+`processed.png`, `result.json`, and the normal processing report when available.
+
+The bridge has stable failure responses and exit codes. It prunes bridge runs
+older than seven days. It does not import Personal_Web code, call Personal_Web
+APIs, upload media, write a database, or decide whether an output should be
+published.
+
 ## Close During Processing
 
 If a task is running, closing asks for confirmation. On confirmation the window disables controls, waits for the current worker operation to finish safely, then shuts down the executor and destroys the Tk window. Running file writes or model initialization are not forcibly killed.
